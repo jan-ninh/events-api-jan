@@ -43,8 +43,13 @@ test("Demo startup recreates all three events in a fresh ephemeral database", ()
 
 test("Hosted API: CORS allows configured frontend and throttles excessive signup", async () => {
   const db = openDatabase();
-  const frontendOrigin = "https://evendule-demo.example";
-  const server = createApp(db, { frontendOrigin, demoMode: true }).listen(0, "127.0.0.1");
+  const frontendOrigin = "https://evendule-live-jan.example";
+  const newFrontendOrigin = "https://evendule.example";
+  const server = createApp(db, {
+    frontendOrigin,
+    additionalFrontendOrigins: newFrontendOrigin,
+    demoMode: true,
+  }).listen(0, "127.0.0.1");
   try {
     if (!server.listening) await once(server, "listening");
     const url = "http://127.0.0.1:" + server.address().port;
@@ -53,6 +58,17 @@ test("Hosted API: CORS allows configured frontend and throttles excessive signup
     });
     assert.equal(allowed.status, 200);
     assert.equal(allowed.headers.get("access-control-allow-origin"), frontendOrigin);
+    const renamed = await fetch(url + "/api/events", {
+      headers: { Origin: newFrontendOrigin },
+    });
+    assert.equal(renamed.status, 200);
+    assert.equal(renamed.headers.get("access-control-allow-origin"), newFrontendOrigin);
+    const renamedPreflight = await fetch(url + "/api/auth/login", {
+      method: "OPTIONS",
+      headers: { Origin: newFrontendOrigin, "Access-Control-Request-Method": "POST" },
+    });
+    assert.equal(renamedPreflight.status, 204);
+    assert.equal(renamedPreflight.headers.get("access-control-allow-origin"), newFrontendOrigin);
     const denied = await fetch(url + "/api/events", {
       headers: { Origin: "https://unrelated.example" },
     });

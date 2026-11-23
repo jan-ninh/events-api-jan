@@ -14,8 +14,16 @@ import {
 
 export function createApp(db, {
   frontendOrigin = process.env.FRONTEND_ORIGIN,
+  additionalFrontendOrigins = process.env.ADDITIONAL_FRONTEND_ORIGINS || "",
   demoMode = process.env.DEMO_MODE === "1",
 } = {}) {
+  // Allow the old and new URL during a controlled Static Site rename.
+  // Never use a CORS wildcard for authenticated demo endpoints.
+  const allowedOrigins = new Set(
+    [frontendOrigin, ...additionalFrontendOrigins.split(",")]
+      .map((origin) => origin?.trim())
+      .filter(Boolean)
+  );
   const app = express();
   app.disable("x-powered-by");
   if (demoMode) app.set("trust proxy", 1);
@@ -28,14 +36,14 @@ export function createApp(db, {
     res.set("Referrer-Policy", "no-referrer");
     res.set("Cache-Control", "no-store");
     const origin = req.get("origin");
-    if (frontendOrigin && origin === frontendOrigin) {
-      res.set("Access-Control-Allow-Origin", frontendOrigin);
+    if (origin && allowedOrigins.has(origin)) {
+      res.set("Access-Control-Allow-Origin", origin);
       res.set("Vary", "Origin");
       res.set("Access-Control-Allow-Headers", "Authorization, Content-Type");
       res.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
     }
     if (req.method === "OPTIONS") {
-      return res.status(origin && frontendOrigin && origin !== frontendOrigin ? 403 : 204).end();
+      return res.status(origin && allowedOrigins.size && !allowedOrigins.has(origin) ? 403 : 204).end();
     }
     next();
   });
