@@ -3,6 +3,8 @@ import { HttpError } from "./errors.js";
 import { signup, login, profile, requireParticipant } from "./auth.js";
 import {
   createEventForParticipant,
+  canManageEvent,
+  deleteEventForParticipant,
   getEvent,
   listEvents,
   organizerStats,
@@ -65,6 +67,19 @@ export function createApp(db) {
     requireParticipant(db, req, res, next);
   }, (req, res) => {
     res.status(201).json(createEventForParticipant(db, req.auth.participantId, req.body));
+  });
+
+  app.get("/api/events/:id/permissions", (req, res, next) => {
+    requireParticipant(db, req, res, next);
+  }, (req, res) => {
+    res.json({ canDelete: canManageEvent(db, req.params.id, req.auth.participantId) });
+  });
+
+  app.delete("/api/events/:id", (req, res, next) => {
+    requireParticipant(db, req, res, next);
+  }, (req, res) => {
+    deleteEventForParticipant(db, req.params.id, req.auth.participantId);
+    res.status(204).end();
   });
 
   // Return a consistent JSON response for missing API routes.
