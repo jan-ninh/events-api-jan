@@ -12,10 +12,60 @@ import {
   listEventRegistrations,
 } from "./db.js";
 
-export function createApp(db) {
+export function createApp(db, {
+  frontendOrigin = process.env.FRONTEND_ORIGIN,
+  demoMode = process.env.DEMO_MODE === "1",
+} = {}) {
   const app = express();
   app.disable("x-powered-by");
+  if (demoMode) app.set("trust proxy", 1);
   app.use(express.json({ limit: "32kb" }));
+
+  // The publicly hosted React site is the only allowed browser origin.
+  // Browser preflight requests must be handled before authentication.
+  app.use((req, res, next) => {
+    res.set("X-Content-Type-Options", "nosniff");
+    res.set("Referrer-Policy", "no-referrer");
+    res.set("Cache-Control", "no-store");
+    const origin = req.get("origin");
+    if (frontendOrigin && origin === frontendOrigin) {
+      res.set("Access-Control-Allow-Origin", frontendOrigin);
+      res.set("Vary", "Origin");
+      res.set("Access-Control-Allow-Headers", "Authorization, Content-Type");
+      res.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+    }
+    if (req.method === "OPTIONS") {
+      return res.status(origin && frontendOrigin && origin !== frontendOrigin ? 403 : 204).end();
+    }
+    next();
+  });
+
+  // Lightweight per-IP protection for the public demo's account endpoints.
+  // This is intentionally bounded and resets with the ephemeral demo server.
+  const attempts = new Map();
+  const authRateLimit = (req, res, next) => {
+    if (!demoMode) return next();
+    const key = req.ip || req.socket.remoteAddress || "unknown";
+    const now = Date.now();
+    let entry = attempts.get(key);
+    if (entry && entry.until <= now) {
+      attempts.delete(key);
+      entry = null;
+    }
+    if (!entry) {
+      if (attempts.size >= 1024) {
+        return res.status(429).json({ error: "Demo is busy. Please try again later." });
+      }
+      entry = { count: 0, until: now + 15 * 60 * 1000 };
+      attempts.set(key, entry);
+    }
+    entry.count += 1;
+    if (entry.count > 20) {
+      res.set("Retry-After", String(Math.ceil((entry.until - now) / 1000)));
+      return res.status(429).json({ error: "Too many authentication attempts. Please try again later." });
+    }
+    next();
+  };
 
   app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
@@ -31,11 +81,11 @@ export function createApp(db) {
 
   // Only authenticated participants can register. Client-supplied participant IDs
   // are deliberately ignored: the session identifies the participant.
-  app.post("/api/auth/signup", (req, res) => {
+  app.post("/api/auth/signup", authRateLimit, (req, res) => {
     res.status(201).json(signup(db, req.body));
   });
 
-  app.post("/api/auth/login", (req, res) => {
+  app.post("/api/auth/login", authRateLimit, (req, res) => {
     res.json(login(db, req.body));
   });
 
