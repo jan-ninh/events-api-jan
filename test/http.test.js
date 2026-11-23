@@ -19,7 +19,7 @@ async function withServer(fn) {
         },
         body: body === undefined ? undefined : JSON.stringify(body),
       });
-      return { status: response.status, data: await response.json() };
+      return { status: response.status, data: response.status === 204 ? null : await response.json() };
     };
     await fn({ db, request });
   } finally {
@@ -134,5 +134,53 @@ test("HTTP: login checks password, session expiry rejects bearer", async () => {
       name: "Short", email: "short@example.com", password: "123",
     });
     assert.equal(tooShort.status, 400);
+  });
+});
+
+test("HTTP: only owner can delete an event, registrations cascade, and themes persist", async () => {
+  await withServer(async ({ db, request }) => {
+    const alice = await request("POST", "/api/auth/signup", {
+      name: "Alice", email: "alice@demo.example", password: "alice-password-123",
+    });
+    const bob = await request("POST", "/api/auth/signup", {
+      name: "Bob", email: "bob@demo.example", password: "bobby-password-123",
+    });
+    assert.equal(alice.status, 201);
+    assert.equal(bob.status, 201);
+
+    const payload = {
+      title: "Board Game Night", location: "Bochum",
+      startsAt: "2027-01-10T18:00:00Z", imageTheme: "gaming",
+    };
+    const created = await request("POST", "/api/events", payload, alice.data.accessToken);
+    assert.equal(created.status, 201);
+    assert.equal(created.data.imageTheme, "gaming");
+    const id = created.data.id;
+    const base = `/api/events/${id}`;
+
+    const list = await request("GET", "/api/events");
+    assert.equal(list.data.results.find(e => e.id === id).imageTheme, "gaming");
+
+    assert.equal((await request("DELETE", base)).status, 401);
+    assert.equal((await request("GET", base + "/permissions")).status, 401);
+    assert.deepEqual((await request("GET", base + "/permissions", undefined, bob.data.accessToken)).data, { canDelete: false });
+    assert.deepEqual((await request("GET", base + "/permissions", undefined, alice.data.accessToken)).data, { canDelete: true });
+    assert.equal((await request("DELETE", base, undefined, bob.data.accessToken)).status, 403);
+
+    const reg = await request("POST", base + "/registrations", {}, bob.data.accessToken);
+    assert.equal(reg.status, 201);
+    assert.equal(db.prepare("SELECT COUNT(*) AS count FROM registrations WHERE event_id = ?").get(id).count, 1);
+
+    const removed = await request("DELETE", base, undefined, alice.data.accessToken);
+    assert.equal(removed.status, 204);
+    assert.equal(removed.data, null);
+    assert.equal((await request("GET", base)).status, 404);
+    assert.equal(db.prepare("SELECT COUNT(*) AS count FROM registrations WHERE event_id = ?").get(id).count, 0);
+    assert.equal((await request("DELETE", base, undefined, alice.data.accessToken)).status, 404);
+
+    const badTheme = await request("POST", "/api/events", {
+      ...payload, imageTheme: "arbitrary",
+    }, alice.data.accessToken);
+    assert.equal(badTheme.status, 400);
   });
 });
