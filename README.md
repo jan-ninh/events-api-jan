@@ -1,68 +1,89 @@
-# Events API - independent backend implementation
+# Events API — independent Express/SQLite backend
 
-Local Node.js / Express / SQLite learning backend, developed as an independent extension of an earlier WBS Coding School team project. The original team/backend code is **not** claimed as personal authorship. See [project provenance](docs/PROJECT_ORIGIN.md).
+Local backend implementation for an event-management application, developed
+after a WBS Coding School team project. **This is original AI-assisted follow-up
+work, not a claim of sole authorship of the old team backend.**
+See [project provenance](docs/PROJECT_ORIGIN.md).
 
-## What this milestone demonstrates
+**Companion React frontend:** [jan-ninh/events-frontend](https://github.com/jan-ninh/events-frontend)
+on branch [feature/own-backend-integration](https://github.com/jan-ninh/events-frontend/tree/feature/own-backend-integration).
 
-- Relational schema for organizers, events, participants, registrations and session credentials
-- Foreign keys and a composite primary key preventing duplicate event registrations
-- Parameterized SQL (`JOIN`, `GROUP BY`, aggregates, lookup queries)
-- Event REST endpoints with validation and mapped HTTP errors
-- Minimal participant authentication using scrypt-hashed passwords and random, hashed, expiring bearer sessions
-- **Event registration derives participant ID from the authenticated session, not from client input**
-- Registration lookup is scoped to the authenticated participant
-- Local database and HTTP integration tests (run `npm test`)
+## Demonstrated implementation
 
-The session mechanism uses Node's built-in crypto; it is not a JWT/refresh-token implementation.
+- Relational SQLite model for `organizers`, `events`, `participants`,
+  `registrations`, participant-to-organizer ownership, credentials and sessions
+- Foreign keys and composite registration key preventing duplicate signups
+- Explicit parameterized SQL with `JOIN`, `GROUP BY`, `COUNT` and `SUM`
+- Authenticated session-bound event creation and event registration
+- scrypt password hashes and random hashed bearer sessions with expiry
+- Event API supplies fields for the React team frontend: dates, descriptions,
+  locations, optional coordinates and creation timestamps
+- Schema adjustment for existing SQLite databases when the optional event fields
+  are absent
+- Database tests and HTTP integration tests, including session identity checks
+
+**The client cannot choose another person's participant ID or organizer ID.**
+The server uses the authenticated participant's identity and assigned organizer.
 
 ## Local development
 
-Node.js 22.13+ required. On Node 22, `node:sqlite` can show an experimental feature warning.
+Use Node.js 22.13+ with npm (on Node 22, `node:sqlite` can emit an
+experimental-feature warning).
 
 ```bash
+git clone -b feature/event-registration https://github.com/jan-ninh/events-api-jan.git
+cd events-api-jan
 npm ci
 npm test
 npm start
 ```
 
-The HTTP service binds to **127.0.0.1:3001** by default and uses the gitignored SQLite file `data/events.sqlite`.
+Local API: `http://127.0.0.1:3001`. Database: `data/events.sqlite` (ignored by Git).
 
-## Example flow
+In another terminal, use the frontend's integration branch and `npm run dev`.
+Vite proxies `/api` to this server, avoiding cross-origin browser requests.
 
-1. `POST /api/organizers` with `{"name":"Example Organizer"}`
-2. `POST /api/events` with `{"organizerId":1,"title":"Fullstack Meetup","location":"Bochum","startsAt":"2026-12-01T18:30:00Z"}`
-3. `POST /api/auth/signup` with `{"name":"Alex","email":"alex@example.com","password":"long-local-password-123"}`
-4. `POST /api/auth/login` with `{"email":"alex@example.com","password":"long-local-password-123"}`
-5. `POST /api/events/1/registrations` with `Authorization: Bearer <accessToken>` and `{}` as the JSON body
-6. `GET /api/events/1/registrations` with the same bearer token: returns only the caller's registration
-
-A repeated registration returns **409**. Missing/expired bearer session returns **401**. Unknown event returns **404**.
-
-The older unauthenticated `POST /api/participants` route was removed. A client must now sign up to create a participant account.
-
-## Routes
+## Core routes
 
 | Method | Endpoint | Access |
 | --- | --- | --- |
-| GET | `/health` | Public (localhost) |
-| GET | `/api/events` and `/api/events/:id` | Public (localhost) |
-| GET | `/api/events/stats` | Public (localhost) |
-| POST | `/api/organizers` and `/api/events` | **Unprotected; local demo only** |
-| POST | `/api/auth/signup` | Public (localhost) |
-| POST | `/api/auth/login` | Public (localhost) |
-| POST | `/api/events/:id/registrations` | Bearer participant session |
-| GET | `/api/events/:id/registrations` | Bearer participant session, own registration only |
+| GET | `/health` | Local, unauthenticated |
+| POST | `/api/auth/signup` | Local, unauthenticated |
+| POST | `/api/auth/login` | Local, unauthenticated |
+| GET | `/api/auth/profile` | Bearer session |
+| GET | `/api/events` | Local, unauthenticated |
+| GET | `/api/events/:id` | Local, unauthenticated |
+| GET | `/api/events/stats` | Local, unauthenticated |
+| POST | `/api/events` | Bearer session, own assigned organizer |
+| POST | `/api/events/:id/registrations` | Bearer session, own participant identity |
+| GET | `/api/events/:id/registrations` | Bearer session, own registration only |
 
-## Test and scope notes
+To create an event, sign up first. Submit `POST /api/events` with a bearer token
+and body such as:
 
-`npm test` runs database and HTTP-level tests. It checks referential integrity, duplicate registrations, login, invalid passwords, expired/invalid sessions, and that a forged `participantId` in the request cannot override the authenticated identity.
+```json
+{"title":"Fullstack Meetup","location":"Bochum","description":"Testing the Events API","startsAt":"2026-12-01T18:00:00Z"}
+```
 
-**This is not production-ready. Do not deploy it publicly.** Missing pieces include authorization for organizer/event creation, login throttling, email verification, account recovery, logout/session revocation, schema migrations, deployment configuration, and further security/edge-case testing. Any Internet-facing deployment must use HTTPS and an explicit authorization design.
+The `organizerId` is derived from your authenticated account, not the body.
 
-The code and Git history show a reviewed, AI-assisted development process. A commit is not by itself proof of exclusively human-written code.
+## Verification
 
-## Next work
+Run `npm test`. Automated tests exercise relational integrity, constraints,
+aggregation, login, session expiry, invalid credentials, authenticated registration,
+ownership and event payload fields. The full frontend browser flow should additionally
+be checked locally: signup, login, create event, view event, register, reload.
 
-- Test the auth change locally, then review the open draft PR
-- Add organizer authorization and login throttling before considering public access
-- Integrate the forked WBS frontend only with clear provenance
+Passing tests means the covered scenarios worked, not that the service is
+production-ready.
+
+## Limits
+
+**Local portfolio prototype only. Do not deploy publicly yet.** Open issues include
+login/signup throttling, account recovery, email verification, server-side logout and
+session revocation, production migration/versioning, retention policy, abuse
+prevention, and detailed security/edge-case review. There is no public live API.
+
+Original team frontend commits remain credited to their actual contributors.
+The new backend's JavaScript/SQL code and its AI-assisted changes are separately
+reviewable through Git commits and pull requests.
