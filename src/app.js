@@ -1,12 +1,12 @@
 import express from "express";
 import { HttpError } from "./errors.js";
+import { signup, login, requireParticipant } from "./auth.js";
 import {
   createEvent,
   createOrganizer,
   getEvent,
   listEvents,
   organizerStats,
-  createParticipant,
   registerForEvent,
   listEventRegistrations,
 } from "./db.js";
@@ -32,23 +32,27 @@ export function createApp(db) {
     });
   });
 
-  app.post("/api/participants", (req, res) => {
-    const participant = createParticipant(db, req.body);
-    res.status(201).json(participant);
+  // Only authenticated participants can register. Client-supplied participant IDs
+  // are deliberately ignored: the session identifies the participant.
+  app.post("/api/auth/signup", (req, res) => {
+    res.status(201).json(signup(db, req.body));
   });
 
-  app.post("/api/events/:id/registrations", (req, res) => {
-    const registration = registerForEvent(
-      db,
-      req.params.id,
-      req.body?.participantId,
-    );
+  app.post("/api/auth/login", (req, res) => {
+    res.json(login(db, req.body));
+  });
 
+  app.post("/api/events/:id/registrations", (req, res, next) => {
+    requireParticipant(db, req, res, next);
+  }, (req, res) => {
+    const registration = registerForEvent(db, req.params.id, req.auth.participantId);
     res.status(201).json(registration);
   });
 
-  app.get("/api/events/:id/registrations", (req, res) => {
-    const results = listEventRegistrations(db, req.params.id);
+  app.get("/api/events/:id/registrations", (req, res, next) => {
+    requireParticipant(db, req, res, next);
+  }, (req, res) => {
+    const results = listEventRegistrations(db, req.params.id, req.auth.participantId);
     res.json({ results });
   });
 
