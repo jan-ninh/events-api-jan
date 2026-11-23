@@ -1,6 +1,6 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { HttpError } from "./errors.js";
-import { createParticipant } from "./db.js";
+import { createParticipant, createOrganizer } from "./db.js";
 
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 
@@ -45,6 +45,10 @@ export function signup(db, body) {
     db.prepare(
       "INSERT INTO participant_credentials (participant_id, password_hash) VALUES (?, ?)"
     ).run(participant.id, passwordHash(password));
+    const organizer = createOrganizer(db, { name: `Account ${participant.id} events` });
+    db.prepare(
+      "INSERT INTO participant_organizers (participant_id, organizer_id) VALUES (?, ?)"
+    ).run(participant.id, organizer.id);
     const accessToken = createSession(db, participant.id);
     db.exec("COMMIT");
     return { tokenType: "Bearer", accessToken, participant };
@@ -73,6 +77,14 @@ export function login(db, body) {
     accessToken: createSession(db, row.id),
     participant: { id: row.id, name: row.name, email: row.email },
   };
+}
+
+export function profile(db, participantId) {
+  const participant = db.prepare(
+    "SELECT id, name, email FROM participants WHERE id = ?"
+  ).get(participantId);
+  if (!participant) throw new HttpError(404, "Participant not found");
+  return participant;
 }
 
 export function requireParticipant(db, req, res, next) {
