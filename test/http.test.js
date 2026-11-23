@@ -32,23 +32,38 @@ async function withServer(fn) {
 
 test("HTTP: authenticated participant can register only own identity", async () => {
   await withServer(async ({ request }) => {
-    const organizer = await request("POST", "/api/organizers", { name: "Organizer" });
-    assert.equal(organizer.status, 201);
-    const event = await request("POST", "/api/events", {
-      organizerId: organizer.data.id,
-      title: "Meetup",
-      location: "Bochum",
-      startsAt: "2026-12-01T18:00:00Z",
-    });
-    assert.equal(event.status, 201);
-    const route = `/api/events/${event.data.id}/registrations`;
-
     const alice = await request("POST", "/api/auth/signup", {
       name: "Alice", email: "ALICE@example.com", password: "local-password-123",
     });
     assert.equal(alice.status, 201);
     assert.equal(alice.data.participant.email, "alice@example.com");
     assert.equal(typeof alice.data.accessToken, "string");
+
+    const eventPayload = {
+      organizerId: 99999, // forged owner must be ignored
+      title: "Meetup", description: "Integration test event",
+      location: "Bochum", latitude: 51.48, longitude: 7.22,
+      startsAt: "2026-12-01T18:00:00Z",
+    };
+    assert.equal((await request("POST", "/api/events", eventPayload)).status, 401);
+    assert.equal((await request("POST", "/api/organizers", { name: "Anyone" })).status, 404);
+
+    const event = await request("POST", "/api/events", eventPayload, alice.data.accessToken);
+    assert.equal(event.status, 201);
+    assert.notEqual(event.data.organizerId, 99999);
+    assert.equal(event.data.date, "2026-12-01T18:00:00.000Z");
+    assert.equal(event.data.description, "Integration test event");
+    assert.equal(event.data.latitude, 51.48);
+    const route = `/api/events/${event.data.id}/registrations`;
+
+    const listEvents = await request("GET", "/api/events");
+    assert.equal(listEvents.status, 200);
+    assert.equal(listEvents.data.results[0].title, "Meetup");
+    const fetched = await request("GET", `/api/events/${event.data.id}`);
+    assert.equal(fetched.data.longitude, 7.22);
+    const profile = await request("GET", "/api/auth/profile", undefined, alice.data.accessToken);
+    assert.equal(profile.status, 200);
+    assert.equal(profile.data.email, "alice@example.com");
 
     assert.equal((await request("POST", route, { participantId: alice.data.participant.id })).status, 401);
     assert.equal((await request("GET", route)).status, 401);
