@@ -67,6 +67,11 @@ export function createApp(db) {
     res.status(201).json(createEventForParticipant(db, req.auth.participantId, req.body));
   });
 
+  // Return a consistent JSON response for missing API routes.
+  app.use("/api", (_req, res) => {
+    res.status(404).json({ error: "API endpoint not found" });
+  });
+
   app.use((err, _req, res, _next) => {
     if (err instanceof HttpError) {
       return res.status(err.status).json({ error: err.message });
