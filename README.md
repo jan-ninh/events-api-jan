@@ -6,9 +6,9 @@
 
 **[React-Frontend öffnen](https://github.com/jan-ninh/events-frontend)** · **[REST-Routen ansehen](src/app.js)** · **[SQL-Implementierung ansehen](src/db.js)** · **[Tests ansehen](test/)**
 
-![Evendule: erfolgreiche Teilnehmeranmeldung über die eigene Events API](https://raw.githubusercontent.com/jan-ninh/events-frontend/main/docs/screenshots/registration-confirmed.webp)
+![Evendule – bestätigte Anmeldung mit Karte, Daten aus der eigenen Events API](https://raw.githubusercontent.com/jan-ninh/events-frontend/main/docs/screenshots/02-anmeldung-mit-karte.webp)
 
-*Frontend-Ansicht aus dem lokalen Integrationstest: Eine Anmeldung wurde im SQLite-Backend gespeichert und über die API wieder abgerufen.*
+*Die React-Detailansicht zeigt die bestätigte Teilnehmeranmeldung. Event und Anmeldestatus stammen aus der Express-/SQLite-API.*
 
 ## Technischer Schwerpunkt
 
