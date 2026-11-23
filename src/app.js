@@ -1,9 +1,8 @@
 import express from "express";
 import { HttpError } from "./errors.js";
-import { signup, login, requireParticipant } from "./auth.js";
+import { signup, login, profile, requireParticipant } from "./auth.js";
 import {
-  createEvent,
-  createOrganizer,
+  createEventForParticipant,
   getEvent,
   listEvents,
   organizerStats,
@@ -17,10 +16,6 @@ export function createApp(db) {
   app.use(express.json({ limit: "32kb" }));
 
   app.get("/health", (_req, res) => res.json({ status: "ok" }));
-
-  app.post("/api/organizers", (req, res) => {
-    res.status(201).json(createOrganizer(db, req.body));
-  });
 
   app.get("/api/events/stats", (req, res) => {
     res.json({ results: organizerStats(db, { from: req.query.from }) });
@@ -42,6 +37,12 @@ export function createApp(db) {
     res.json(login(db, req.body));
   });
 
+  app.get("/api/auth/profile", (req, res, next) => {
+    requireParticipant(db, req, res, next);
+  }, (req, res) => {
+    res.json(profile(db, req.auth.participantId));
+  });
+
   app.post("/api/events/:id/registrations", (req, res, next) => {
     requireParticipant(db, req, res, next);
   }, (req, res) => {
@@ -60,8 +61,10 @@ export function createApp(db) {
     res.json(getEvent(db, req.params.id));
   });
 
-  app.post("/api/events", (req, res) => {
-    res.status(201).json(createEvent(db, req.body));
+  app.post("/api/events", (req, res, next) => {
+    requireParticipant(db, req, res, next);
+  }, (req, res) => {
+    res.status(201).json(createEventForParticipant(db, req.auth.participantId, req.body));
   });
 
   app.use((err, _req, res, _next) => {
