@@ -41,6 +41,11 @@ CREATE TABLE IF NOT EXISTS registrations (
 );
 
 
+    CREATE TABLE IF NOT EXISTS participant_organizers (
+      participant_id INTEGER PRIMARY KEY REFERENCES participants(id) ON DELETE CASCADE,
+      organizer_id INTEGER NOT NULL UNIQUE REFERENCES organizers(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS participant_credentials (
       participant_id INTEGER PRIMARY KEY REFERENCES participants(id) ON DELETE CASCADE,
       password_hash TEXT NOT NULL
@@ -58,6 +63,15 @@ CREATE TABLE IF NOT EXISTS registrations (
     CREATE INDEX IF NOT EXISTS idx_events_starts_at ON events(starts_at);
     CREATE INDEX IF NOT EXISTS idx_events_organizer_id ON events(organizer_id);
   `);
+  // Previous local SQLite databases must gain optional UI fields, too.
+  const columns = new Set(db.prepare("PRAGMA table_info(events)").all().map((x) => x.name));
+  for (const [name, type] of [
+    ["description", "TEXT"],
+    ["latitude", "REAL"],
+    ["longitude", "REAL"],
+  ]) {
+    if (!columns.has(name)) db.exec(`ALTER TABLE events ADD COLUMN ${name} ${type}`);
+  }
   return db;
 }
 
@@ -84,6 +98,16 @@ export function createEvent(db, body) {
   const title = requiredString(body?.title, "title", 3, 255);
   const location = requiredString(body?.location, "location", 2, 255);
   const startsAt = isoDate(body?.startsAt);
+  const description = body?.description == null ? null : requiredString(body.description, "description", 0, 5000);
+  const coordinate = (value, label, min, max) => {
+    if (value == null) return null;
+    if (typeof value !== "number" || !Number.isFinite(value) || value < min || value > max) {
+      throw new HttpError(400, `${label} must be a number between ${min} and ${max}`);
+    }
+    return value;
+  };
+  const latitude = coordinate(body?.latitude, "latitude", -90, 90);
+  const longitude = coordinate(body?.longitude, "longitude", -180, 180);
 
   // Explicit existence check supplies a useful HTTP error instead of an opaque FK error.
   const organizer = db
@@ -94,11 +118,11 @@ export function createEvent(db, body) {
   const result = db
     .prepare(
       `
-    INSERT INTO events (organizer_id, title, location, starts_at)
-    VALUES (?, ?, ?, ?)
+    INSERT INTO events (organizer_id, title, location, starts_at, description, latitude, longitude)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `,
     )
-    .run(organizerId, title, location, startsAt);
+    .run(organizerId, title, location, startsAt, description, latitude, longitude);
 
   return getEvent(db, Number(result.lastInsertRowid));
 }
@@ -109,6 +133,8 @@ export function getEvent(db, idValue) {
     .prepare(
       `
     SELECT e.id, e.title, e.location, e.starts_at AS startsAt,
+           e.starts_at AS date, e.created_at AS createdAt,
+           e.description, e.latitude, e.longitude,
            o.id AS organizerId, o.name AS organizerName
     FROM events e
     JOIN organizers o ON o.id = e.organizer_id
@@ -128,6 +154,8 @@ export function listEvents(db, { from, limit } = {}) {
     .prepare(
       `
     SELECT e.id, e.title, e.location, e.starts_at AS startsAt,
+           e.starts_at AS date, e.created_at AS createdAt,
+           e.description, e.latitude, e.longitude,
            o.id AS organizerId, o.name AS organizerName
     FROM events e
     JOIN organizers o ON o.id = e.organizer_id
@@ -158,6 +186,16 @@ export function organizerStats(db, { from } = {}) {
   `,
     )
     .all(fromISO);
+}
+
+export function createEventForParticipant(db, participantIdValue, body) {
+  const participantId = positiveId(participantIdValue, "participantId");
+  const mapping = db.prepare(
+    "SELECT organizer_id AS organizerId FROM participant_organizers WHERE participant_id = ?"
+  ).get(participantId);
+  if (!mapping) throw new HttpError(403, "No organizer assigned to this participant");
+  // Never trust client-supplied organizerId.
+  return createEvent(db, { ...body, organizerId: mapping.organizerId });
 }
 
 export function createParticipant(db, body) {
