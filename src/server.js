@@ -8,7 +8,7 @@ mkdirSync(dirname(filename), { recursive: true });
 const db = openDatabase(filename);
 const port = Number(process.env.PORT || 3001);
 
-const server = createApp(db).listen(port, () => {
+const server = createApp(db).listen(port, "127.0.0.1", () => {
   console.log(`Events API running at http://localhost:${port}`);
 });
 
