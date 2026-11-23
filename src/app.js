@@ -68,6 +68,7 @@ export function createApp(db, {
   };
 
   app.get("/health", (_req, res) => res.json({ status: "ok" }));
+  app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
 
   app.get("/api/events/stats", (req, res) => {
     res.json({ results: organizerStats(db, { from: req.query.from }) });
