@@ -23,6 +23,8 @@ export function openDatabase(filename = ":memory:") {
       title TEXT NOT NULL CHECK (length(title) BETWEEN 3 AND 255),
       location TEXT NOT NULL,
       starts_at TEXT NOT NULL,
+      image_theme TEXT NOT NULL DEFAULT 'community'
+        CHECK (image_theme IN ('tech', 'workshop', 'gaming', 'outdoor', 'food', 'community')),
       created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     );
 
@@ -69,6 +71,7 @@ CREATE TABLE IF NOT EXISTS registrations (
     ["description", "TEXT"],
     ["latitude", "REAL"],
     ["longitude", "REAL"],
+    ["image_theme", "TEXT NOT NULL DEFAULT 'community'"],
   ]) {
     if (!columns.has(name)) db.exec(`ALTER TABLE events ADD COLUMN ${name} ${type}`);
   }
@@ -99,6 +102,10 @@ export function createEvent(db, body) {
   const location = requiredString(body?.location, "location", 2, 255);
   const startsAt = isoDate(body?.startsAt);
   const description = body?.description == null ? null : requiredString(body.description, "description", 0, 5000);
+  const imageTheme = body?.imageTheme ?? "community";
+  if (!["tech", "workshop", "gaming", "outdoor", "food", "community"].includes(imageTheme)) {
+    throw new HttpError(400, "Invalid image theme");
+  }
   const coordinate = (value, label, min, max) => {
     if (value == null) return null;
     if (typeof value !== "number" || !Number.isFinite(value) || value < min || value > max) {
@@ -118,11 +125,11 @@ export function createEvent(db, body) {
   const result = db
     .prepare(
       `
-    INSERT INTO events (organizer_id, title, location, starts_at, description, latitude, longitude)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO events (organizer_id, title, location, starts_at, description, latitude, longitude, image_theme)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `,
     )
-    .run(organizerId, title, location, startsAt, description, latitude, longitude);
+    .run(organizerId, title, location, startsAt, description, latitude, longitude, imageTheme);
 
   return getEvent(db, Number(result.lastInsertRowid));
 }
@@ -134,7 +141,7 @@ export function getEvent(db, idValue) {
       `
     SELECT e.id, e.title, e.location, e.starts_at AS startsAt,
            e.starts_at AS date, e.created_at AS createdAt,
-           e.description, e.latitude, e.longitude,
+           e.description, e.latitude, e.longitude, e.image_theme AS imageTheme,
            o.id AS organizerId, o.name AS organizerName
     FROM events e
     JOIN organizers o ON o.id = e.organizer_id
@@ -155,7 +162,7 @@ export function listEvents(db, { from, limit } = {}) {
       `
     SELECT e.id, e.title, e.location, e.starts_at AS startsAt,
            e.starts_at AS date, e.created_at AS createdAt,
-           e.description, e.latitude, e.longitude,
+           e.description, e.latitude, e.longitude, e.image_theme AS imageTheme,
            o.id AS organizerId, o.name AS organizerName
     FROM events e
     JOIN organizers o ON o.id = e.organizer_id
@@ -196,6 +203,36 @@ export function createEventForParticipant(db, participantIdValue, body) {
   if (!mapping) throw new HttpError(403, "No organizer assigned to this participant");
   // Never trust client-supplied organizerId.
   return createEvent(db, { ...body, organizerId: mapping.organizerId });
+}
+
+export function canManageEvent(db, eventIdValue, participantIdValue) {
+  const eventId = positiveId(eventIdValue, "eventId");
+  const participantId = positiveId(participantIdValue, "participantId");
+  getEvent(db, eventId); // Retain 404 semantics for an unknown event.
+  const owned = db.prepare(`
+    SELECT 1 FROM events e
+    JOIN participant_organizers po ON po.organizer_id = e.organizer_id
+    WHERE e.id = ? AND po.participant_id = ?
+  `).get(eventId, participantId);
+  return Boolean(owned);
+}
+
+export function deleteEventForParticipant(db, eventIdValue, participantIdValue) {
+  const eventId = positiveId(eventIdValue, "eventId");
+  const participantId = positiveId(participantIdValue, "participantId");
+  if (!canManageEvent(db, eventId, participantId)) {
+    throw new HttpError(403, "Only the event owner can delete this event");
+  }
+
+  // Enforce ownership again in SQL, not only in the preceding check.
+  // Registrations reference events with ON DELETE CASCADE.
+  const result = db.prepare(`
+    DELETE FROM events
+    WHERE id = ? AND organizer_id = (
+      SELECT organizer_id FROM participant_organizers WHERE participant_id = ?
+    )
+  `).run(eventId, participantId);
+  if (result.changes !== 1) throw new HttpError(404, "Event not found");
 }
 
 export function createParticipant(db, body) {
