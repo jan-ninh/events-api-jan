@@ -23,8 +23,8 @@ export function openDatabase(filename = ":memory:") {
       title TEXT NOT NULL CHECK (length(title) BETWEEN 3 AND 255),
       location TEXT NOT NULL,
       starts_at TEXT NOT NULL,
-      image_theme TEXT NOT NULL DEFAULT 'community'
-        CHECK (image_theme IN ('tech', 'workshop', 'gaming', 'outdoor', 'food', 'community')),
+      image_theme TEXT NOT NULL DEFAULT 'auto'
+        CHECK (image_theme IN ('auto', 'tech', 'workshop', 'gaming', 'outdoor', 'food', 'community')),
       created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     );
 
@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS registrations (
     ["description", "TEXT"],
     ["latitude", "REAL"],
     ["longitude", "REAL"],
-    ["image_theme", "TEXT NOT NULL DEFAULT 'community'"],
+    ["image_theme", "TEXT NOT NULL DEFAULT 'auto'"],
   ]) {
     if (!columns.has(name)) db.exec(`ALTER TABLE events ADD COLUMN ${name} ${type}`);
   }
@@ -102,8 +102,8 @@ export function createEvent(db, body) {
   const location = requiredString(body?.location, "location", 2, 255);
   const startsAt = isoDate(body?.startsAt);
   const description = body?.description == null ? null : requiredString(body.description, "description", 0, 5000);
-  const imageTheme = body?.imageTheme ?? "community";
-  if (!["tech", "workshop", "gaming", "outdoor", "food", "community"].includes(imageTheme)) {
+  const imageTheme = body?.imageTheme ?? "auto";
+  if (!["auto", "tech", "workshop", "gaming", "outdoor", "food", "community"].includes(imageTheme)) {
     throw new HttpError(400, "Invalid image theme");
   }
   const coordinate = (value, label, min, max) => {
