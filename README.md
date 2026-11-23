@@ -15,7 +15,8 @@
 - **Relationales Datenmodell:** Veranstalter, Events, Teilnehmer, Anmeldungen, Zugangsdaten und Sessions.
 - **Datenintegrität:** Fremdschlüssel und zusammengesetzter Primärschlüssel schützen Beziehungen und verhindern doppelte Event-Anmeldungen.
 - **SQL statt ORM-Abstraktion:** Parametrisierte Abfragen mit `JOIN`, `GROUP BY`, `COUNT` und `SUM`.
-- **REST-API:** Event-Erstellung, Listen- und Detailansichten, Anmeldung und Abruf des eigenen Anmeldestatus.
+- **REST-API:** Event-Erstellung, Listen- und Detailansichten, Anmeldung, Abruf des eigenen Anmeldestatus und serverseitig autorisiertes Event-Löschen mit kaskadierendem Entfernen der Anmeldungen.
+- **Eventbilder:** Persistierte Bildkategorie, damit das React-Frontend je Event ein passendes Cover anzeigen kann.
 - **Authentifizierung:** Passwort-Hashes mit `scrypt`, zufällige Bearer-Tokens mit Ablaufzeit und serverseitige Identitätsprüfung.
 - **Zugriffskontrolle im Kernablauf:** Die API ermittelt Teilnehmer- und Veranstalterzuordnung aus der Session, statt Client-IDs ungeprüft zu übernehmen.
 - **Qualitätssicherung:** Datenbanktests, HTTP-Integrationstests und ein erfolgreicher vollständiger Browserdurchlauf mit dem React-Frontend.
