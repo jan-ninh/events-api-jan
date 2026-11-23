@@ -1,58 +1,86 @@
-# Events API – independent backend implementation
+# Events API - independent backend implementation
 
-An independent learning backend for an events app, built with **Node.js, Express 5 and SQLite**.
+A **local learning project** using Node.js, Express 5 and SQLite. This is a new backend implementation related to an earlier WBS Coding School team project, **not** a claim that the original team/WBS backend was written solely by Jan Ninh.
 
-This repository is intended as an original backend extension to a previously developed WBS team project.
-It does **not** present the old WBS backend code as a new personal implementation.
-See [project origin](docs/PROJECT_ORIGIN.md).
+Project history and attribution: [docs/PROJECT_ORIGIN.md](docs/PROJECT_ORIGIN.md).
 
-## Features (initial milestone)
+## Current milestone: event registration
 
-- Relational schema with `organizers` and `events`, including a foreign-key constraint
-- Express REST endpoints for creating and reading organizers/events
-- A new SQL aggregation endpoint: upcoming event counts per organizer
-- Parameterized SQL queries, input validation, deterministic ordering
-- Node built-in test runner with database tests
+- Relational SQLite schema: `organizers`, `events`, `participants`, `registrations`
+- Foreign keys and a composite primary key to prevent duplicate event registrations
+- Parameterized SQL queries with `JOIN`, `GROUP BY` and aggregations
+- Express REST endpoints for creating organizers, events and participants; registering participants; and listing registrations
+- Validation and meaningful HTTP errors (`400`, `404`, `409`)
+- Local automated tests: **7 database tests and 1 HTTP integration test** (one HTTP test covers several request/error scenarios)
 
-**Not production-ready:** authentication, authorization, migrations, rate limiting, and HTTP-level
-integration tests are not yet implemented. Do not deploy publicly as a writable service.
+This version uses AI-assisted collaboration and local review. A commit in this repository records a change to this implementation, not authorship of the earlier team project.
 
-## Requirements
+## Run locally
 
-Node.js **22.13+**, npm. `node:sqlite` is experimental on Node 22 and can emit a warning.
+Requirements: **Node.js 22.13+** and npm. `node:sqlite` may show an experimental-feature warning on Node 22.
 
 ```bash
-npm install
+npm ci
 npm test
 npm start
 ```
 
-Starts at `http://localhost:3001`. The SQLite file is in `data/events.sqlite` and is gitignored.
+API: `http://localhost:3001`. SQLite data is stored at `data/events.sqlite` and excluded from Git.
 
-## Try the endpoints
+## Routes
 
-```bash
-curl -X POST http://localhost:3001/api/organizers   -H "Content-Type: application/json"   -d '{"name":"Jan"}'
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| GET | `/health` | Local liveness response |
+| POST | `/api/organizers` | Create organizer |
+| POST | `/api/events` | Create event |
+| GET | `/api/events` | List events |
+| GET | `/api/events/:id` | Get event |
+| GET | `/api/events/stats` | Aggregate events by organizer |
+| POST | `/api/participants` | Create participant |
+| POST | `/api/events/:id/registrations` | Register participant |
+| GET | `/api/events/:id/registrations` | List event registrations |
 
-curl -X POST http://localhost:3001/api/events   -H "Content-Type: application/json"   -d '{"organizerId":1,"title":"Fullstack Meetup","location":"Bochum","startsAt":"2026-12-01T18:30:00Z"}'
+Example JSON request bodies, in order:
 
-curl http://localhost:3001/api/events
-curl 'http://localhost:3001/api/events/stats?from=2026-11-23T00:00:00Z'
-curl http://localhost:3001/health
+```json
+{"name":"Example Organizer"}
 ```
 
-## How this differs from the WBS starter
+`POST /api/organizers` returns an ID. Use it for:
 
-- Original schema design and implementation in this repo
-- Explicitly parameterized SQL with `JOIN`, `GROUP BY`, `COUNT`, `SUM` and foreign-key checks
-- Independent tests that can be run without production data
-- An honest history of the original team project
+```json
+{"organizerId":1,"title":"Fullstack Meetup","location":"Bochum","startsAt":"2026-12-01T18:30:00Z"}
+```
 
-## Next steps
+Create a participant with `POST /api/participants`:
 
-1. Run and review every database test, then commit.
-2. Add actual authentication/ownership checks before enabling writes on a public server.
-3. Add HTTP-level integration tests and a migration strategy.
-4. Integrate the team frontend through a separately maintained, attribution-preserving fork.
+```json
+{"name":"Alex","email":"alex@example.com"}
+```
 
-The point is verified engineering work, not generating a commit to imply authorship of old code.
+Register with `POST /api/events/1/registrations`:
+
+```json
+{"participantId":1}
+```
+
+For local demonstrations these IDs assume a fresh database and successful prior requests. Repeating the same event/participant registration returns **409 Conflict**.
+
+## Test coverage
+
+Run `npm test`. The Node test runner executes database tests for foreign keys, relational joins, aggregation, validation, injection-safe parameterization, duplicate registrations and error mapping, plus an HTTP integration test covering a successful registration flow, listing and error cases.
+
+A passing local test suite **does not mean the service is production-ready**.
+
+## Security and limitations
+
+**Local development only. Do not expose this API publicly yet.**
+
+- There is **no authentication or authorization** for the write routes, including registrations. Anyone who can access the server could submit changes or register another participant by ID.
+- The registration-list endpoint currently exposes participant names to any requester. E-mail addresses are excluded from this list, but access control is still required.
+- Participant creation does not verify e-mail ownership.
+- Database migrations, rate limits, robust privacy protections and production deployment hardening are not implemented.
+- The new backend is **not yet connected to the forked team frontend**.
+
+Suggested next steps: add authenticated identity and owner/organizer access rules, test access denial, define database migrations, then integrate the frontend. Keep original WBS/team provenance visible.
