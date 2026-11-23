@@ -13,7 +13,7 @@ const db = openDatabase(filename);
 if (demoMode) console.log(`Seeded ${seedDemoEvents(db)} demo events`);
 
 const port = Number(process.env.PORT || 3001);
-const host = process.env.RENDER ? "0.0.0.0" : "127.0.0.1";
+const host = process.env.RENDER || demoMode ? "0.0.0.0" : "127.0.0.1";
 const server = createApp(db).listen(port, host, () => {
   console.log(`Events API listening on ${host}:${port}`);
 });
