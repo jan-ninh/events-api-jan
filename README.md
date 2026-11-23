@@ -1,5 +1,7 @@
 # Events API | Express + SQLite
 
+[![Backend tests](https://github.com/jan-ninh/events-api-jan/actions/workflows/ci.yml/badge.svg)](https://github.com/jan-ninh/events-api-jan/actions/workflows/ci.yml)
+
 **Eigenständiges Backend für eine Fullstack-Events-App.** Die Node.js-/Express-API verwaltet Benutzerkonten, Veranstaltungen und Teilnehmeranmeldungen in einer relationalen SQLite-Datenbank. Das [React-Frontend (Evendule)](https://github.com/jan-ninh/events-frontend) ist vollständig mit dieser API verbunden.
 
 **[React-Frontend öffnen](https://github.com/jan-ninh/events-frontend)** · **[REST-Routen ansehen](src/app.js)** · **[SQL-Implementierung ansehen](src/db.js)** · **[Tests ansehen](test/)**
