@@ -4,7 +4,7 @@
 
 **Eigenständiges Backend für eine Fullstack-Events-App.** Die Node.js-/Express-API verwaltet Benutzerkonten, Veranstaltungen und Teilnehmeranmeldungen in einer relationalen SQLite-Datenbank. Das [React-Frontend (Evendule)](https://github.com/jan-ninh/events-frontend) ist vollständig mit dieser API verbunden.
 
-**[React-Frontend öffnen](https://github.com/jan-ninh/events-frontend)** · **[REST-Routen ansehen](src/app.js)** · **[SQL-Implementierung ansehen](src/db.js)** · **[Tests ansehen](test/)**
+**[Live-Demo ausprobieren](https://evendule-live-jan.onrender.com)** · **[React-Frontend ansehen](https://github.com/jan-ninh/events-frontend)** · **[REST-Routen ansehen](src/app.js)** · **[SQL-Implementierung ansehen](src/db.js)** · **[Tests ansehen](test/)**
 
 ![Evendule – bestätigte Anmeldung mit Karte, Daten aus der eigenen Events API](https://raw.githubusercontent.com/jan-ninh/events-frontend/main/docs/screenshots/evendule-eventdetails.webp)
 
@@ -114,4 +114,4 @@ Die Integration mit React wurde lokal durchgespielt: Registrierung, Login, Event
 
 Das Backend entstand als **separat entwickelte Erweiterung** zu einer früheren WBS-Team-Events-App. Es verwendet eine eigenständige Implementierung mit direktem SQL-Zugriff. Die ursprünglichen Teambeiträge sind im [Frontend-Repository](https://github.com/jan-ninh/events-frontend) dokumentiert. Details zur Herkunft stehen unter [Project Origin](docs/PROJECT_ORIGIN.md).
 
-**Status:** Funktionsfähige lokale Fullstack-Arbeitsprobe. Der Quellcode ist öffentlich einsehbar; ein öffentlich erreichbarer Produktionsserver ist nicht eingerichtet. Für einen Internetbetrieb wären zusätzliche Schutzmaßnahmen wie Login-Limits, Sitzungsverwaltung und Betriebs-/Datenschutzkonzept erforderlich.
+**Status:** Öffentliche, ausdrücklich nicht-produktive [Fullstack-Live-Demo auf Render](https://evendule-live-jan.onrender.com). Die kostenlose API verwendet SQLite im Arbeitsspeicher und legt nach jedem Serverstart automatisch drei geschützte Beispielveranstaltungen an. Neue Accounts, Events und Anmeldungen bleiben nur bis zum nächsten Neustart erhalten. Authentifizierungsanfragen sind für diese Demo begrenzt, der Zugriff auf Löschfunktionen wird serverseitig autorisiert. Die lokale Entwicklungsfassung verwendet weiterhin die Datei `data/events.sqlite`. Für eine produktive Anwendung wären zusätzliche Schutzmaßnahmen und persistente Datenhaltung nötig.
