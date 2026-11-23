@@ -1,6 +1,15 @@
 import express from "express";
 import { HttpError } from "./errors.js";
-import { createEvent, createOrganizer, getEvent, listEvents, organizerStats } from "./db.js";
+import {
+  createEvent,
+  createOrganizer,
+  getEvent,
+  listEvents,
+  organizerStats,
+  createParticipant,
+  registerForEvent,
+  listEventRegistrations,
+} from "./db.js";
 
 export function createApp(db) {
   const app = express();
@@ -18,7 +27,29 @@ export function createApp(db) {
   });
 
   app.get("/api/events", (req, res) => {
-    res.json({ results: listEvents(db, { from: req.query.from, limit: req.query.limit }) });
+    res.json({
+      results: listEvents(db, { from: req.query.from, limit: req.query.limit }),
+    });
+  });
+
+  app.post("/api/participants", (req, res) => {
+    const participant = createParticipant(db, req.body);
+    res.status(201).json(participant);
+  });
+
+  app.post("/api/events/:id/registrations", (req, res) => {
+    const registration = registerForEvent(
+      db,
+      req.params.id,
+      req.body?.participantId,
+    );
+
+    res.status(201).json(registration);
+  });
+
+  app.get("/api/events/:id/registrations", (req, res) => {
+    const results = listEventRegistrations(db, req.params.id);
+    res.json({ results });
   });
 
   app.get("/api/events/:id", (req, res) => {
