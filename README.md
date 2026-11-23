@@ -1,58 +1,89 @@
-# Events API – independent backend implementation
+# Events API — independent Express/SQLite backend
 
-An independent learning backend for an events app, built with **Node.js, Express 5 and SQLite**.
+Local backend implementation for an event-management application, developed
+after a WBS Coding School team project. **This is original AI-assisted follow-up
+work, not a claim of sole authorship of the old team backend.**
+See [project provenance](docs/PROJECT_ORIGIN.md).
 
-This repository is intended as an original backend extension to a previously developed WBS team project.
-It does **not** present the old WBS backend code as a new personal implementation.
-See [project origin](docs/PROJECT_ORIGIN.md).
+**Companion React frontend:** [jan-ninh/events-frontend](https://github.com/jan-ninh/events-frontend)
+on branch [feature/own-backend-integration](https://github.com/jan-ninh/events-frontend/tree/feature/own-backend-integration).
 
-## Features (initial milestone)
+## Demonstrated implementation
 
-- Relational schema with `organizers` and `events`, including a foreign-key constraint
-- Express REST endpoints for creating and reading organizers/events
-- A new SQL aggregation endpoint: upcoming event counts per organizer
-- Parameterized SQL queries, input validation, deterministic ordering
-- Node built-in test runner with database tests
+- Relational SQLite model for `organizers`, `events`, `participants`,
+  `registrations`, participant-to-organizer ownership, credentials and sessions
+- Foreign keys and composite registration key preventing duplicate signups
+- Explicit parameterized SQL with `JOIN`, `GROUP BY`, `COUNT` and `SUM`
+- Authenticated session-bound event creation and event registration
+- scrypt password hashes and random hashed bearer sessions with expiry
+- Event API supplies fields for the React team frontend: dates, descriptions,
+  locations, optional coordinates and creation timestamps
+- Schema adjustment for existing SQLite databases when the optional event fields
+  are absent
+- Database tests and HTTP integration tests, including session identity checks
 
-**Not production-ready:** authentication, authorization, migrations, rate limiting, and HTTP-level
-integration tests are not yet implemented. Do not deploy publicly as a writable service.
+**The client cannot choose another person's participant ID or organizer ID.**
+The server uses the authenticated participant's identity and assigned organizer.
 
-## Requirements
+## Local development
 
-Node.js **22.13+**, npm. `node:sqlite` is experimental on Node 22 and can emit a warning.
+Use Node.js 22.13+ with npm (on Node 22, `node:sqlite` can emit an
+experimental-feature warning).
 
 ```bash
-npm install
+git clone -b feature/event-registration https://github.com/jan-ninh/events-api-jan.git
+cd events-api-jan
+npm ci
 npm test
 npm start
 ```
 
-Starts at `http://localhost:3001`. The SQLite file is in `data/events.sqlite` and is gitignored.
+Local API: `http://127.0.0.1:3001`. Database: `data/events.sqlite` (ignored by Git).
 
-## Try the endpoints
+In another terminal, use the frontend's integration branch and `npm run dev`.
+Vite proxies `/api` to this server, avoiding cross-origin browser requests.
 
-```bash
-curl -X POST http://localhost:3001/api/organizers   -H "Content-Type: application/json"   -d '{"name":"Jan"}'
+## Core routes
 
-curl -X POST http://localhost:3001/api/events   -H "Content-Type: application/json"   -d '{"organizerId":1,"title":"Fullstack Meetup","location":"Bochum","startsAt":"2026-12-01T18:30:00Z"}'
+| Method | Endpoint | Access |
+| --- | --- | --- |
+| GET | `/health` | Local, unauthenticated |
+| POST | `/api/auth/signup` | Local, unauthenticated |
+| POST | `/api/auth/login` | Local, unauthenticated |
+| GET | `/api/auth/profile` | Bearer session |
+| GET | `/api/events` | Local, unauthenticated |
+| GET | `/api/events/:id` | Local, unauthenticated |
+| GET | `/api/events/stats` | Local, unauthenticated |
+| POST | `/api/events` | Bearer session, own assigned organizer |
+| POST | `/api/events/:id/registrations` | Bearer session, own participant identity |
+| GET | `/api/events/:id/registrations` | Bearer session, own registration only |
 
-curl http://localhost:3001/api/events
-curl 'http://localhost:3001/api/events/stats?from=2026-11-23T00:00:00Z'
-curl http://localhost:3001/health
+To create an event, sign up first. Submit `POST /api/events` with a bearer token
+and body such as:
+
+```json
+{"title":"Fullstack Meetup","location":"Bochum","description":"Testing the Events API","startsAt":"2026-12-01T18:00:00Z"}
 ```
 
-## How this differs from the WBS starter
+The `organizerId` is derived from your authenticated account, not the body.
 
-- Original schema design and implementation in this repo
-- Explicitly parameterized SQL with `JOIN`, `GROUP BY`, `COUNT`, `SUM` and foreign-key checks
-- Independent tests that can be run without production data
-- An honest history of the original team project
+## Verification
 
-## Next steps
+Run `npm test`. Automated tests exercise relational integrity, constraints,
+aggregation, login, session expiry, invalid credentials, authenticated registration,
+ownership and event payload fields. The full frontend browser flow should additionally
+be checked locally: signup, login, create event, view event, register, reload.
 
-1. Run and review every database test, then commit.
-2. Add actual authentication/ownership checks before enabling writes on a public server.
-3. Add HTTP-level integration tests and a migration strategy.
-4. Integrate the team frontend through a separately maintained, attribution-preserving fork.
+Passing tests means the covered scenarios worked, not that the service is
+production-ready.
 
-The point is verified engineering work, not generating a commit to imply authorship of old code.
+## Limits
+
+**Local portfolio prototype only. Do not deploy publicly yet.** Open issues include
+login/signup throttling, account recovery, email verification, server-side logout and
+session revocation, production migration/versioning, retention policy, abuse
+prevention, and detailed security/edge-case review. There is no public live API.
+
+Original team frontend commits remain credited to their actual contributors.
+The new backend's JavaScript/SQL code and its AI-assisted changes are separately
+reviewable through Git commits and pull requests.
